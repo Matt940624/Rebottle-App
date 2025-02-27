@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:rebottle/pages/customer_pages/notifications.dart';
+import 'package:rebottle/pages/customer_pages/account_page.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -13,6 +16,15 @@ class _HomePageState extends State<HomePage> {
   bool isScanning = false;
   String scannedCode = '';
   MobileScannerController? controller;
+  final NotificationService _notificationService = NotificationService();
+  var collection = FirebaseFirestore.instance.collection("14 use");
+  int scanCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _notificationService.initNotification();
+  }
 
   @override
   void dispose() {
@@ -24,13 +36,12 @@ class _HomePageState extends State<HomePage> {
     if (controller != null) {
       await stopScanner();
     }
-    
+
     controller = MobileScannerController(
       facing: CameraFacing.back,
-      // Prevent torch issues
-      torchEnabled: false,
+      torchEnabled: false, // Prevent torch issues
     );
-    
+
     if (mounted) {
       setState(() {
         isScanning = true;
@@ -43,7 +54,7 @@ class _HomePageState extends State<HomePage> {
       await controller?.stop();
       await controller?.dispose();
       controller = null;
-      
+
       if (mounted) {
         setState(() {
           isScanning = false;
@@ -64,7 +75,8 @@ class _HomePageState extends State<HomePage> {
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('Camera Permission'),
-            content: const Text('Please grant camera permission to use the QR scanner'),
+            content: const Text(
+                'Please grant camera permission to use the QR scanner'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
@@ -90,12 +102,6 @@ class _HomePageState extends State<HomePage> {
       backgroundColor: Colors.grey[300],
       body: Stack(
         children: [
-          Container(
-            color: Colors.grey[300],
-            width: double.infinity,
-            height: double.infinity,
-          ),
-          
           if (isScanning && controller != null)
             Positioned.fill(
               child: Container(
@@ -116,11 +122,27 @@ class _HomePageState extends State<HomePage> {
                           controller: controller!,
                           onDetect: (capture) async {
                             final List<Barcode> barcodes = capture.barcodes;
+
+                            scanCount++;
+                            collection.add({'scancount': scanCount.toString()});
+                            debugPrint("Scan count: $scanCount");
+
+                            if (scanCount == 14) {
+                              _notificationService.showNotification(
+                                title: "Rebottle Reward!",
+                                body:
+                                    "14 times a charm, you win a free drink! 🎉",
+                              );
+                            }
+                            callback();
+                            timezone();
+
                             for (final barcode in barcodes) {
                               await stopScanner();
                               if (mounted) {
                                 setState(() {
-                                  scannedCode = barcode.rawValue ?? 'Failed to scan';
+                                  scannedCode =
+                                      barcode.rawValue ?? 'Failed to scan';
                                 });
                               }
                               break;
